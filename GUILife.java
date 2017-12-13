@@ -157,7 +157,7 @@ public class GUILife extends JFrame implements ListSelectionListener {
 
         // Else generates next generation and adds to cache
         else {
-            mWorld = copyWorld(true);
+            mWorld = copyWorld();
             if (mWorld != null) mWorld.nextGeneration();
             mCachedWorlds.add(mWorld);
             mGamePanel.display(mWorld);
@@ -178,7 +178,7 @@ public class GUILife extends JFrame implements ListSelectionListener {
         mCachedWorlds.clear();
 
         try {
-            mWorld = new ArrayWorld(p);
+            mWorld = new World(p);
         }
         catch (PatternFormatException pfe) {
             pfe.printStackTrace();
@@ -193,15 +193,15 @@ public class GUILife extends JFrame implements ListSelectionListener {
     /**
      * Method to copy current world. Returns new copied world.
      *
-     * @param   useCloning    Use `true` by default for better performance
      * @return                copy of current world
      */
-    private World copyWorld(boolean useCloning) {
-        if (useCloning) {
+    private World copyWorld() {
+        try {
             return mWorld.clone();
         }
-        else {
-            return new ArrayWorld((ArrayWorld) mWorld);
+        catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+            return null;
         }
     }
     
