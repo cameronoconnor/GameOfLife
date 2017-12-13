@@ -1,56 +1,86 @@
 package uk.ac.cam.cjo41.gameoflife;
 
 /**
- * Abstract class which represents a world.
+ * Represents a world using a boolean array.
  */
-public abstract class World implements Cloneable {
+public class World implements Cloneable {
 
+    private boolean[][] mWorld;
+    private int mHeight;
+    private int mWidth;
+    private boolean[] mDeadRow;
     private int mGeneration;
-    public abstract boolean getCell(int col, int row);
-    public abstract void setCell(int col, int row, boolean value);
-    protected abstract void nextGenerationImpl();
     private Pattern mPattern;
-    
+
     /**
-     * Constructor - creates new Pattern from initialiser string.
-     * @param init   Pattern format string
-     * @throws PatternFormatException   If format string is invalid
+     * Constructor - takes a Pattern object and creates new world.
+     * @param p  Pattern object
+     * @throws PatternFormatException
      */
-    public World(String init) throws PatternFormatException {
-        mPattern = new Pattern(init);
+    public World(Pattern p) throws PatternFormatException {
+        // Pattern constructor, uses replaceDeadRows()
+        mPattern = p;
+        mHeight = p.getHeight();
+        mWidth = p.getWidth();
+        mDeadRow = new boolean[mWidth];
+        mWorld = new boolean[mHeight][mWidth];
+        mPattern.initialise(this);
+        replaceDeadRows();
     }
-    
+
     /**
-     * Constructor - creates new world from Pattern.
-     * @param p   Pattern object
-     */
-    public World(Pattern p) { mPattern = p; }
-    
-    /**
-     * Copy constructor.
+     * Copy constructor - takes an existing World object.
      * @param w   World object
      */
     public World(World w) {
-        mPattern = w.mPattern;
-        mGeneration = w.mGeneration;
+        // Copy constructor
+        mHeight = w.mHeight;
+        mWidth = w.mWidth;
+        mDeadRow = w.mDeadRow;
+        // Deep copy of mWorld
+        mWorld = new boolean[mHeight][mWidth];
+        for (int i=0; i<mHeight; i++) {
+            if (w.mWorld[i] == w.mDeadRow)
+                mWorld[i] = mDeadRow;
+            else
+                mWorld[i] = w.mWorld[i].clone();
+        }
     }
-    
+
+    /**
+     * Replaces rows which are entirely dead with a reference to a single
+     * (all-false) boolean array - saves memory
+     */
+    private void replaceDeadRows() {
+        for (int i=0; i < mHeight; i++) {
+            boolean[] row = mWorld[i];
+            boolean allDead = true;
+            for (boolean val : row) {
+                if (val) {
+                    allDead = false;
+                    break;
+                }
+            }
+            if (allDead) mWorld[i] = mDeadRow;
+        }
+    }
+
     /**
      * Gets width of world.
      * @return   Width of world
      */
     public int getWidth() {
-        return (mPattern.getWidth());
+        return mWidth;
     }
-    
+
     /**
      * Gets height of world.
      * @return   Height of world
      */
     public int getHeight() {
-        return (mPattern.getHeight());
+        return mHeight;
     }
-    
+
     /**
      * Gets the generation number which this world represents.
      * @return   Current generation number
@@ -58,7 +88,7 @@ public abstract class World implements Cloneable {
     public int getGenerationCount() {
         return mGeneration;
     }
-    
+
     /**
      * Gets the pattern which this world belongs to.
      * @return   Pattern
@@ -66,22 +96,56 @@ public abstract class World implements Cloneable {
     protected Pattern getPattern() {
         return mPattern;
     }
-    
+
     /**
-     * Advances to the next generation - updates the current object.
+     * Generates next generation and updates the local world reference.
      */
-    public void nextGeneration() {
-        nextGenerationImpl();
+    protected void nextGeneration() {
+        boolean[][] nextGeneration = new boolean[mHeight][];
+        for (int y = 0; y < mHeight; ++y) {
+            nextGeneration[y] = new boolean[mWorld[y].length];
+            for (int x = 0; x < mWidth; ++x) {
+                boolean nextCell = computeCell(x, y);
+                nextGeneration[y][x] = nextCell;
+            }
+        }
+        mWorld = nextGeneration;
         mGeneration++;
+        replaceDeadRows();
     }
-    
+
+    /**
+     * Sets cell at (row, col) to value
+     * @param col
+     * @param row
+     * @param value
+     */
+    public void setCell(int col, int row, boolean value) {
+        mWorld[row][col] = value;
+    }
+
+    /**
+     * Gets value of cell at (row, col)
+     * @param col
+     * @param row
+     * @return
+     */
+    public boolean getCell(int col, int row) {
+        // Performs bounds-checked cell value lookup
+        if (col < 0 || row < 0 || row > mHeight - 1)
+            return false;
+        if (col > mWidth - 1)
+            return false;
+        else return mWorld[row][col];
+    }
+
     /**
      * Helper method - counts the live neighbours of cell (row, col).
      * @param col
      * @param row
      * @return   The number of live neighbours
      */
-    protected int countNeighbours(int col, int row) {
+    private int countNeighbours(int col, int row) {
         // counts number of live neighbours of given cell (col, row)
         int neighbours = 0;
         for (int r = row - 1; r <= row + 1; r++) {   // iterates through rows adjacent to (col, row)
@@ -92,7 +156,7 @@ public abstract class World implements Cloneable {
         }
         return neighbours;
     }
-    
+
     /**
      * Helper method - computes whether a cell will be alive or dead in the
      * next generation.
@@ -100,7 +164,7 @@ public abstract class World implements Cloneable {
      * @param row
      * @return   True if alive, false if dead
      */
-    protected boolean computeCell(int col, int row) {
+    private boolean computeCell(int col, int row) {
         boolean liveCell = getCell(col, row);
         int neighbours = countNeighbours(col, row);
         boolean nextCell = false;
@@ -115,18 +179,21 @@ public abstract class World implements Cloneable {
             nextCell = true;
         return nextCell;
     }
-    
+
     /**
-     * Clone method - returns copy of self.
-     * @return   Copy of self
+     * Cloning method - returns copy of self.
+     * @return  copy of self
      */
-    public World clone() {
-        try {
-            return (World) super.clone();
+    public World clone() throws CloneNotSupportedException {
+        World cloned = (World) super.clone();
+        // Deep clone mWorld
+        cloned.mWorld = new boolean[mHeight][];
+        for (int i=0; i<mHeight; i++) {
+            if (mWorld[i] == mDeadRow)
+                cloned.mWorld[i] = cloned.mDeadRow;
+            else
+                cloned.mWorld[i] = mWorld[i].clone();
         }
-        catch (CloneNotSupportedException e) {
-            e.printStackTrace();
-            return null;
-        }
+        return cloned;
     }
 }
